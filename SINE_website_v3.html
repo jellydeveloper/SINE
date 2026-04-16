@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SINE System — Rensselaer Polytechnic Institute</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root {
+      --crimson: #C8102E;
+      --crimson-d: #9e0d23;
+      --black: #0a0a0a;
+      --off-white: #f7f5f2;
+      --paper: #ede9e3;
+      --ink: #1a1a1a;
+      --ink-mid: #4a4a4a;
+      --ink-light: #7a7a7a;
+      --rule: rgba(0,0,0,0.1);
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--off-white);
+      color: var(--ink);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--black);
+      padding: 0 22px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 48px;
+      position: sticky; top: 0; z-index: 99;
+    }
+
+    .nav-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px; letter-spacing: .08em;
+      color: #fff;
+    }
+
+    .nav-logo span { color: var(--crimson); }
+
+    .nav-links { display: flex; gap: 18px; }
+    .nav-links a {
+      font-size: 11px; font-weight: 500; letter-spacing: .06em;
+      text-transform: uppercase; color: rgba(255,255,255,.5);
+      text-decoration: none; transition: color .15s;
+    }
+    .nav-links a:hover { color: #fff; }
+
+    /* ── SECTION BASE ── */
+    section { padding: 60px 24px; border-bottom: 1px solid var(--rule); }
+
+    /* ── HERO ── */
+    #hero {
+      background: var(--black);
+      padding: 0;
+      border: none;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Giant "SINE" watermark */
+    .hero-watermark {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 42vw;
+      line-height: .82;
+      color: rgba(255,255,255,0.03);
+      position: absolute;
+      top: -2%; left: -4%;
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+      max-font-size: 220px;
+    }
+
+    .hero-inner {
+      position: relative; z-index: 1;
+      padding: 52px 24px 0;
+    }
+
+    .hero-kicker {
+      font-size: 10px; font-weight: 500; letter-spacing: .22em;
+      text-transform: uppercase; color: var(--crimson);
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    .hero-kicker::before {
+      content: '';
+      display: block; width: 24px; height: 2px;
+      background: var(--crimson); flex-shrink: 0;
+    }
+
+    .hero-h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 72px; line-height: .92;
+      letter-spacing: .02em;
+      color: #fff;
+      margin-bottom: 28px;
+    }
+
+    .hero-h1 em {
+      font-style: normal;
+      color: var(--crimson);
+      display: block;
+    }
+
+    .hero-body {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 14px; line-height: 1.75;
+      color: rgba(255,255,255,.6);
+      margin-bottom: 36px;
+    }
+
+    .hero-cta-row { display: flex; gap: 12px; align-items: center; margin-bottom: 48px; }
+
+    .btn-primary {
+      background: var(--crimson); color: #fff;
+      font-family: 'DM Sans', sans-serif; font-size: 12px;
+      font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+      padding: 12px 22px; border-radius: 3px;
+      text-decoration: none; border: none; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-primary:hover { background: var(--crimson-d); }
+
+    .btn-ghost {
+      background: transparent; color: rgba(255,255,255,.5);
+      font-family: 'DM Sans', sans-serif; font-size: 12px;
+      font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+      padding: 12px 0; border: none; cursor: pointer;
+      text-decoration: none; transition: color .15s;
+    }
+    .btn-ghost:hover { color: #fff; }
+
+    /* Pole comparison — inline inline */
+    .pole-compare {
+      display: flex; align-items: flex-end;
+      gap: 0; border-top: 1px solid rgba(255,255,255,.08);
+    }
+
+    .pole-col {
+      flex: 1; padding: 28px 20px 32px;
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+    }
+
+    .pole-col + .pole-col {
+      border-left: 1px solid rgba(255,255,255,.08);
+      background: rgba(200,16,46,0.05);
+    }
+
+    .pcol-label {
+      font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+      color: rgba(255,255,255,.3); margin-bottom: 20px; font-weight: 500;
+    }
+
+    .pcol-label.new { color: var(--crimson); }
+
+    /* SVG poles */
+    .pole-svg { width: 56px; height: 130px; }
+
+    .pcol-desc {
+      font-size: 11px; color: rgba(255,255,255,.4);
+      text-align: center; line-height: 1.6; margin-top: 14px;
+      font-family: 'Libre Baskerville', serif; font-style: italic;
+    }
+
+    .pcol-desc.new { color: rgba(255,255,255,.65); }
+
+    /* ── SECTION 1 — CONTEXT ── */
+    #context { background: var(--off-white); }
+
+    .context-stat-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--rule);
+      border: 1px solid var(--rule);
+      margin: 32px -24px;
+    }
+
+    .stat-cell {
+      background: var(--off-white); padding: 24px 20px;
+    }
+
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 48px; line-height: 1; letter-spacing: .02em;
+      color: var(--crimson); margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 11px; color: var(--ink-mid); line-height: 1.45;
+      font-weight: 400;
+    }
+
+    .context-pull {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 19px; line-height: 1.5;
+      color: var(--ink); font-style: italic;
+      border-left: 3px solid var(--crimson);
+      padding-left: 18px;
+      margin: 32px 0;
+    }
+
+    /* Campus real map */
+    .campus-map-wrap {
+      margin-top: 28px;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #context-map {
+      height: 260px;
+      width: 100%;
+      z-index: 0;
+    }
+
+    /* Override Leaflet popup for site aesthetic */
+    .leaflet-popup-content-wrapper {
+      border-radius: 6px !important;
+      font-family: 'DM Sans', sans-serif !important;
+      font-size: 12px !important;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12) !important;
+    }
+    .leaflet-popup-content { margin: 10px 13px !important; }
+    .map-popup-name { font-weight: 700; font-size: 13px; color: var(--ink); margin-bottom: 2px; }
+    .map-popup-type { font-size: 11px; color: var(--ink-light); }
+
+    .map-legend-overlay {
+      position: absolute; top: 10px; right: 10px; z-index: 999;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid var(--rule);
+      border-radius: 4px; padding: 7px 10px;
+      display: flex; flex-direction: column; gap: 5px;
+      backdrop-filter: blur(4px);
+    }
+    .ml-item { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--ink-mid); font-family: 'IBM Plex Mono', monospace; }
+    .ml-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+
+    /* ── SECTION 2 — FEATURES ── */
+    #features { background: var(--paper); }
+
+    .section-rule {
+      width: 32px; height: 3px; background: var(--crimson);
+      margin-bottom: 20px;
+    }
+
+    /* Feature items — alternating layout, not uniform cards */
+    .feat-item {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--rule);
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 16px; align-items: start;
+    }
+    .feat-item:last-child { border-bottom: none; }
+
+    .feat-n {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px; color: var(--ink-light);
+      padding-top: 3px;
+    }
+
+    .feat-title {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 16px; font-weight: 700;
+      margin-bottom: 8px; color: var(--ink);
+    }
+
+    .feat-desc {
+      font-size: 13px; color: var(--ink-mid);
+      line-height: 1.65; margin: 0;
+    }
+
+    /* Wide callout — breaks the column */
+    .callout-full {
+      background: var(--crimson); color: #fff;
+      margin: 40px -24px; padding: 32px 24px;
+    }
+
+    .callout-full blockquote {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 18px; font-style: italic; line-height: 1.55;
+      margin-bottom: 16px;
+    }
+
+    .callout-full cite {
+      font-size: 11px; font-style: normal; letter-spacing: .1em;
+      text-transform: uppercase; opacity: .75;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* Benefits — 2-col grid, no emoji */
+    .benefits-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--rule);
+      border: 1px solid var(--rule); margin-top: 36px;
+    }
+
+    .ben-cell {
+      background: var(--off-white); padding: 20px 16px;
+    }
+
+    .ben-cell h4 {
+      font-size: 12px; font-weight: 700; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--ink);
+      margin-bottom: 8px;
+    }
+
+    .ben-cell p {
+      font-size: 12px; color: var(--ink-mid);
+      line-height: 1.6; margin: 0;
+    }
+
+    /* CTA block */
+    .cta-block {
+      background: var(--black); color: #fff;
+      margin: 40px -24px 0; padding: 40px 24px;
+    }
+
+    .cta-block h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 44px; line-height: .95; letter-spacing: .02em;
+      margin-bottom: 16px;
+    }
+
+    .cta-block h2 span { color: var(--crimson); }
+
+    .cta-block p {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 13px; font-style: italic;
+      color: rgba(255,255,255,.6); line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    /* ── DEMO ── */
+    #demo {
+      background: var(--black); padding: 0;
+      border: none;
+    }
+
+    .demo-label {
+      padding: 28px 24px 0;
+    }
+
+    .demo-label .hero-kicker { margin-bottom: 8px; }
+
+    .demo-label h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px; line-height: 1; letter-spacing: .02em;
+      color: #fff; margin-bottom: 10px;
+    }
+
+    .demo-label p {
+      font-size: 12px; color: rgba(255,255,255,.4);
+      font-family: 'DM Sans', sans-serif; margin-bottom: 24px;
+    }
+
+    .device-wrap {
+      background: #111;
+      border-radius: 22px 22px 0 0;
+      margin: 0 18px;
+      padding: 10px 10px 0;
+      border: 1.5px solid rgba(255,255,255,.07);
+      border-bottom: none;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.5);
+    }
+
+    .device-bar {
+      width: 60px; height: 5px; border-radius: 3px;
+      background: rgba(255,255,255,.1); margin: 0 auto 10px;
+    }
+
+    .device-screen {
+      background: #f0f4f8; border-radius: 14px 14px 0 0;
+      overflow: hidden; position: relative;
+      /* height set dynamically by scaleDemo() */
+    }
+
+    .device-screen iframe {
+      display: block; border: none;
+      transform-origin: top left;
+      /* width/height/transform set dynamically by scaleDemo() */
+    }
+
+    /* ── LEGAL ── */
+    #legal { background: var(--off-white); }
+
+    .legal-nav {
+      display: flex; margin: 20px 0 0;
+      border-bottom: 2px solid var(--rule);
+    }
+
+    .ltab {
+      flex: 1; padding: 10px 0;
+      background: transparent; border: none;
+      font-family: 'DM Sans', sans-serif; font-size: 11px;
+      font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--ink-light); cursor: pointer; transition: color .15s;
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+    }
+    .ltab.on { color: var(--crimson); border-bottom-color: var(--crimson); }
+
+    .legal-panel { display: none; padding: 24px 0; }
+    .legal-panel.on { display: block; }
+
+    .legal-panel h3 {
+      font-family: 'Libre Baskerville', serif;
+      font-size: 15px; font-weight: 700;
+      margin-bottom: 12px; color: var(--ink);
+    }
+
+    .legal-panel p {
+      font-size: 13px; color: var(--ink-mid);
+      line-height: 1.75; margin-bottom: 14px;
+    }
+
+    .legal-panel p:last-child { margin-bottom: 0; }
+
+    .privacy-note {
+      background: var(--paper); border-left: 3px solid var(--ink-light);
+      padding: 14px 16px; font-size: 12px;
+      color: var(--ink-mid); line-height: 1.65; margin-top: 16px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--black); padding: 36px 24px;
+    }
+
+    .footer-top {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 32px; letter-spacing: .04em;
+      color: #fff; margin-bottom: 16px;
+    }
+    .footer-top span { color: var(--crimson); }
+
+    .footer-body {
+      font-size: 12px; color: rgba(255,255,255,.35);
+      line-height: 1.8;
+    }
+
+    .footer-rule {
+      height: 1px; background: rgba(255,255,255,.08);
+      margin: 20px 0;
+    }
+
+    .footer-credits {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; color: rgba(255,255,255,.2);
+      line-height: 1.9;
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">SINE<span>.</span></div>
+  <div class="nav-links">
+    <a href="#context">About</a>
+    <a href="#features">Features</a>
+    <a href="#demo">Demo</a>
+    <a href="#legal">Info</a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════
+     HERO
+══════════════════════════════ -->
+<section id="hero">
+  <div class="hero-watermark">SINE</div>
+  <div class="hero-inner">
+
+    <div class="hero-kicker">Rensselaer Polytechnic Institute · Troy, NY</div>
+
+    <h1 class="hero-h1">
+      Safety
+      <em>reimagined.</em>
+    </h1>
+
+    <p class="hero-body">
+      The SINE System takes the Blue Light poles already on campus and gives them a second job. Instead of just an emergency button most students never touch, each pole becomes a kiosk with real, useful information.
+    </p>
+
+    <div class="hero-cta-row">
+      <a href="#demo" class="btn-primary">Try the prototype</a>
+      <a href="#features" class="btn-ghost">See features →</a>
+    </div>
+
+  </div>
+
+  <!-- Pole before/after -->
+  <div class="pole-compare">
+    <div class="pole-col">
+      <div class="pcol-label">Before</div>
+      <!-- Old blue-light pole SVG -->
+      <svg class="pole-svg" viewBox="0 0 56 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Glow -->
+        <ellipse cx="28" cy="14" rx="14" ry="14" fill="#3b82f6" opacity=".15"/>
+        <!-- Light -->
+        <circle cx="28" cy="14" r="8" fill="#3b82f6"/>
+        <circle cx="28" cy="14" r="5" fill="#93c5fd"/>
+        <!-- Pole -->
+        <rect x="24" y="22" width="8" height="95" rx="2" fill="#7f1d1d"/>
+        <!-- Base -->
+        <rect x="18" y="114" width="20" height="8" rx="2" fill="#6b1a1a"/>
+      </svg>
+      <p class="pcol-desc">Just a button. Most students don't know who it calls or what happens when they press it.</p>
+    </div>
+
+    <div class="pole-col">
+      <div class="pcol-label new">After — SINE</div>
+      <!-- SINE upgraded pole SVG -->
+      <svg class="pole-svg" viewBox="0 0 56 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Glow -->
+        <ellipse cx="28" cy="10" rx="14" ry="10" fill="#0ea5e9" opacity=".18"/>
+        <!-- Light -->
+        <circle cx="28" cy="10" r="7" fill="#0ea5e9"/>
+        <circle cx="28" cy="10" r="4" fill="#bae6fd"/>
+        <!-- Screen housing -->
+        <rect x="8" y="17" width="40" height="52" rx="5" fill="#0c1c2e" stroke="#0369a1" stroke-width="1.5"/>
+        <!-- Screen lines -->
+        <rect x="13" y="24" width="30" height="3" rx="1.5" fill="#38bdf8" opacity=".7"/>
+        <rect x="13" y="31" width="24" height="2" rx="1" fill="#38bdf8" opacity=".4"/>
+        <rect x="13" y="37" width="30" height="2" rx="1" fill="#38bdf8" opacity=".4"/>
+        <rect x="13" y="43" width="20" height="2" rx="1" fill="#38bdf8" opacity=".3"/>
+        <rect x="13" y="51" width="30" height="5" rx="2" fill="#C8102E" opacity=".8"/>
+        <rect x="13" y="58" width="16" height="5" rx="2" fill="#166534" opacity=".7"/>
+        <!-- Pole -->
+        <rect x="24" y="69" width="8" height="48" rx="2" fill="#0c2340"/>
+        <!-- Base -->
+        <rect x="18" y="114" width="20" height="8" rx="2" fill="#091929"/>
+      </svg>
+      <p class="pcol-desc new">Same pole, same location. Touchscreen with live campus info, and a button that finally makes sense to use.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════
+     CONTEXT
+══════════════════════════════ -->
+<section id="context">
+
+  <div class="section-rule"></div>
+  <h2 style="font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.02em;margin-bottom:16px;line-height:1;">The Problem With<br>Blue Light Poles</h2>
+
+  <p style="font-family:'Libre Baskerville',serif;font-size:14px;line-height:1.75;color:var(--ink-mid);">Most open campuses have Blue Light poles. The problem is that students mostly walk right past them. They don't know who picks up, whether they can cancel, or if their situation even qualifies. So they just don't use them.</p>
+
+  <!-- Stats -->
+  <div class="context-stat-row">
+    <div class="stat-cell">
+      <div class="stat-num">915</div>
+      <div class="stat-label">Calls per year at one campus out of 50,000 total interactions</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">68%</div>
+      <div class="stat-label">Burglary reduction at Rice Univ. after 80 poles were installed</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">13/78</div>
+      <div class="stat-label">Poles non-operational at one school at any given time</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num">$15k</div>
+      <div class="stat-label">Replacement cost per unit when LED systems fail entirely</div>
+    </div>
+  </div>
+
+  <div class="context-pull">
+    "Students completely forgot they were an option on campus because of their infrequent use."
+    <br><br>
+    <span style="font-size:11px;font-style:normal;color:var(--ink-light);letter-spacing:.06em;text-transform:uppercase;font-family:'DM Sans',sans-serif;">— RPI Campus Feedback, Spring 2026</span>
+  </div>
+
+  <p style="font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink-mid);line-height:1.7;">SINE doesn't tear anything out. It builds on top of what's already there. The idea is that if students are stopping at these poles every day to check shuttle times or find a professor's office, they'll feel a lot more comfortable using that emergency button when it actually matters.</p>
+
+  <!-- Real campus map -->
+  <div class="campus-map-wrap">
+    <div id="context-map"></div>
+    <div class="map-legend-overlay">
+      <div class="ml-item"><div class="ml-dot" style="background:#C8102E"></div>SINE kiosk</div>
+      <div class="ml-item"><div class="ml-dot" style="background:#888"></div>Existing pole</div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════
+     FEATURES
+══════════════════════════════ -->
+<section id="features" style="background:var(--paper);">
+
+  <div class="section-rule"></div>
+  <h2 style="font-family:'Bebas Neue',sans-serif;font-size:34px;letter-spacing:.02em;margin-bottom:6px;line-height:1;">What SINE Delivers</h2>
+  <p style="font-size:12px;color:var(--ink-light);letter-spacing:.06em;text-transform:uppercase;font-weight:500;margin-bottom:0;">Five features. One familiar pole.</p>
+
+  <div style="margin-top:8px;">
+    <div class="feat-item">
+      <div class="feat-n">01</div>
+      <div>
+        <div class="feat-title">Shuttle &amp; Bus Tracking</div>
+        <p class="feat-desc">Shows next arrivals for both RPI shuttle loops along with which direction they're actually heading. CDTA Routes 87 and 286 are included too, with the stops people care about.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-n">02</div>
+      <div>
+        <div class="feat-title">Faculty &amp; Office Lookup</div>
+        <p class="feat-desc">Search by name or department and find where someone's office is. From there you can pull up the map and get walking directions, accessible routes included.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-n">03</div>
+      <div>
+        <div class="feat-title">Campus Alerts</div>
+        <p class="feat-desc">Campus warnings, weather updates, and closures pulled from RPI operations. The more urgent something is, the more visible it is on screen.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-n">04</div>
+      <div>
+        <div class="feat-title">Emergency Button, With Context</div>
+        <p class="feat-desc">The button is still there, it's just physical rather than buried in a menu. Right next to it is a short description that answers what people actually want to know: who picks up, can you hang up, is it recorded. That context alone makes it easier to use.</p>
+      </div>
+    </div>
+    <div class="feat-item">
+      <div class="feat-n">05</div>
+      <div>
+        <div class="feat-title">Accessible Campus Map</div>
+        <p class="feat-desc">A real map of campus with every building marked. Tap any building and you get walking directions from wherever the kiosk is. Accessible routes are flagged by default, which is especially useful for people who are new to campus or just visiting.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full-bleed callout -->
+  <div class="callout-full">
+    <blockquote>"The system made a decent first impression on both participants. Nobody needed it explained to them, which is probably the most important thing for a kiosk."</blockquote>
+    <cite>Usability Test Participant, RPI Campus, March 2026</cite>
+  </div>
+
+  <!-- Benefits grid — no emoji -->
+  <h3 style="font-family:'Libre Baskerville',serif;font-size:16px;margin-bottom:0;">Why It Works</h3>
+  <div class="benefits-grid">
+    <div class="ben-cell">
+      <h4>Direct From Campus</h4>
+      <p>Everything comes from actual campus systems, not a third-party app someone forgot to update.</p>
+    </div>
+    <div class="ben-cell">
+      <h4>Easier to Approach</h4>
+      <p>Students who use the kiosk every day for normal stuff are going to be a lot more comfortable with it when something actually goes wrong.</p>
+    </div>
+    <div class="ben-cell">
+      <h4>Accessibility Built In</h4>
+      <p>Accessible routes show up in the map by default. Students with mobility needs don't have to figure that out on their own.</p>
+    </div>
+    <div class="ben-cell">
+      <h4>Tested by Students</h4>
+      <p>We ran usability tests with RPI students and staff in Troy. The features here are based on what they actually said they wanted.</p>
+    </div>
+  </div>
+
+  <div class="cta-block">
+    <h2>You've walked past a<br><span>Blue Light</span><br>pole before.</h2>
+    <p>Most students have. They're meant to help, but the design makes them hard to trust. Nobody knows what happens when you press the button, so nobody does. That's what we're trying to fix with SINE.</p>
+    <a href="#demo" class="btn-primary">Try the prototype</a>
+  </div>
+
+</section>
+
+<!-- ══════════════════════════════
+     DEMO EMBED
+══════════════════════════════ -->
+<section id="demo" style="background:var(--black);padding:0;border:none;">
+  <div class="demo-label">
+    <div class="hero-kicker">Live Prototype</div>
+    <h2>Try it.</h2>
+    <p>Tap the screen to start it up. This is the actual interface we built, not a mockup.</p>
+  </div>
+  <div class="device-wrap">
+    <div class="device-bar"></div>
+    <div class="device-screen">
+      <iframe src="SINE_map.html" title="SINE System Prototype" allowfullscreen></iframe>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════
+     LEGAL
+══════════════════════════════ -->
+<section id="legal">
+
+  <div class="section-rule"></div>
+  <h2 style="font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:.02em;margin-bottom:4px;">Product Information</h2>
+  <p style="font-size:12px;color:var(--ink-light);">Just the legal stuff. Worth reading if you're considering this for your campus.</p>
+
+  <div class="legal-nav">
+    <button class="ltab on" onclick="showTab('liability',this)">Liability</button>
+    <button class="ltab"    onclick="showTab('ip',this)">IP</button>
+    <button class="ltab"    onclick="showTab('repair',this)">Repair</button>
+    <button class="ltab"    onclick="showTab('privacy',this)">Privacy</button>
+  </div>
+
+  <div class="legal-panel on" id="tab-liability">
+    <h3>Product Liability</h3>
+    <p>The user agrees to use the product as intended; improper use voids the manufacturing warranty. Any injury caused by improper use is not the responsibility of the designer or manufacturer.</p>
+    <p>Improper installation of the SINE System resulting in damages, injury, or system malfunctions is not the responsibility of the designer or manufacturer.</p>
+  </div>
+
+  <div class="legal-panel" id="tab-ip">
+    <h3>Intellectual Property</h3>
+    <p>The SINE System does not infringe on any existing patent. What makes it distinct includes a dual screen for two users to access different information at the same time, a physical emergency button that contacts public safety, warning lights that activate when the button is pressed, and customizable information tiles per institution.</p>
+  </div>
+
+  <div class="legal-panel" id="tab-repair">
+    <h3>Repair Policy</h3>
+    <p>SINE System manuals are provided digitally upon purchase. Physical copies are available at a reasonable fee. Mechanical parts and hardware are standardized for easy buyer repair, and replacement parts are available from the manufacturer.</p>
+    <p>Any modification of hardware or software voids the manufacturer warranty.</p>
+  </div>
+
+  <div class="legal-panel" id="tab-privacy">
+    <h3>Privacy Policy</h3>
+    <p>SINE does not collect private or personal information. Some features require verifying that you're an RPI student or faculty member, but your identity is never stored by the SINE system itself.</p>
+    <div class="privacy-note">
+      Note: RPI does collect its own data on RPI ID usage separately. Check RPI's privacy policies for more on that.
+    </div>
+  </div>
+
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-top">SINE<span>.</span></div>
+  <div class="footer-body">
+    Student Information, Navigation &amp; Emergency System<br>
+    Designed at Rensselaer Polytechnic Institute · Troy, NY
+  </div>
+  <div class="footer-rule"></div>
+  <div class="footer-credits">
+    Christian Burke-Joseph · Andrew Choi<br>
+    Sloane Hazzard · Eurydice Molina<br>
+    Design &amp; Innovation Studio C · Spring 2026
+  </div>
+</footer>
+
+<script>
+  function showTab(id, btn) {
+    document.querySelectorAll('.legal-panel').forEach(p => p.classList.remove('on'));
+    document.querySelectorAll('.ltab').forEach(t => t.classList.remove('on'));
+    document.getElementById('tab-' + id).classList.add('on');
+    btn.classList.add('on');
+  }
+
+  // ── Context campus map ──
+  const ctxMap = L.map('context-map', {
+    center: [42.7302, -73.6768],
+    zoom: 15,
+    zoomControl: false,
+    scrollWheelZoom: false,
+    attributionControl: true,
+  });
+
+  // CartoDB Positron — clean, minimal, matches the paper aesthetic
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 19,
+  }).addTo(ctxMap);
+
+  // SINE kiosk locations (crimson, pulsing)
+  const SINE_KIOSKS = [
+    { lat: 42.73015, lng: -73.67622, name: 'Student Union',   note: 'Main kiosk location' },
+    { lat: 42.72924, lng: -73.67826, name: 'Near DCC',        note: 'Darrin Communications Ctr' },
+    { lat: 42.73158, lng: -73.67870, name: 'ECAV',            note: 'North Loop shuttle stop' },
+    { lat: 42.72888, lng: -73.67745, name: 'JEC',             note: 'Jonsson Engineering Ctr' },
+    { lat: 42.72787, lng: -73.67922, name: 'EMPAC',           note: 'Experimental Media & Arts' },
+  ];
+
+  // Existing Blue Light pole locations
+  const OLD_POLES = [
+    { lat: 42.73045, lng: -73.67705 },
+    { lat: 42.72960, lng: -73.67775 },
+    { lat: 42.73245, lng: -73.67905 },
+    { lat: 42.72998, lng: -73.67688 },
+    { lat: 42.73115, lng: -73.67563 },
+    { lat: 42.72840, lng: -73.67815 },
+    { lat: 42.73281, lng: -73.67783 },
+  ];
+
+  // Crimson SINE marker with pulse animation
+  const sineIcon = (name, note) => L.divIcon({
+    className: '',
+    html: `
+      <div style="position:relative;width:14px;height:14px;">
+        <div style="
+          position:absolute;inset:0;border-radius:50%;
+          background:#C8102E;border:2.5px solid white;
+          box-shadow:0 1px 5px rgba(0,0,0,0.25);
+          animation:sinePulse 2.2s ease-out infinite;
+        "></div>
+      </div>
+      <style>
+        @keyframes sinePulse {
+          0%   { box-shadow: 0 0 0 0 rgba(200,16,46,0.45), 0 1px 5px rgba(0,0,0,0.25); }
+          70%  { box-shadow: 0 0 0 10px rgba(200,16,46,0),  0 1px 5px rgba(0,0,0,0.25); }
+          100% { box-shadow: 0 0 0 0 rgba(200,16,46,0),     0 1px 5px rgba(0,0,0,0.25); }
+        }
+      </style>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+    popupAnchor: [0, -10],
+  });
+
+  // Gray existing pole marker
+  const poleIcon = L.divIcon({
+    className: '',
+    html: `<div style="width:10px;height:10px;border-radius:50%;background:#888;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.2);"></div>`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+  });
+
+  SINE_KIOSKS.forEach(k => {
+    L.marker([k.lat, k.lng], { icon: sineIcon(k.name, k.note) })
+      .addTo(ctxMap)
+      .bindPopup(`<div class="map-popup-name">${k.name}</div><div class="map-popup-type">SINE Kiosk &middot; ${k.note}</div>`);
+  });
+
+  OLD_POLES.forEach(p => {
+    L.marker([p.lat, p.lng], { icon: poleIcon }).addTo(ctxMap);
+  });
+
+  // ── Demo iframe scaling ──
+  const KIOSK_W = 900;
+  const KIOSK_H = 700;
+
+  function scaleDemo() {
+    const screen = document.querySelector('.device-screen');
+    const iframe = screen.querySelector('iframe');
+    if (!screen || !iframe) return;
+    const containerW = screen.offsetWidth;
+    const scale = containerW / KIOSK_W;
+    iframe.style.width  = KIOSK_W + 'px';
+    iframe.style.height = KIOSK_H + 'px';
+    iframe.style.transform = `scale(${scale})`;
+    screen.style.height = Math.floor(KIOSK_H * scale) + 'px';
+  }
+
+  scaleDemo();
+  window.addEventListener('resize', scaleDemo);
+</script>
+</body>
+</html>

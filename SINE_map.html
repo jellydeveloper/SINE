@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SINE System — RPI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    :root {
+      --bg:           #f0f4f8;
+      --surface:      #ffffff;
+      --surface2:     #e8edf3;
+      --border:       rgba(0,0,0,0.09);
+      --shadow:       0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05);
+      --text:         #0f1f33;
+      --muted:        #4a6078;
+      --dim:          #6b859e;
+      --red:          #c0222a;
+      --red-light:    #fff0f0;
+      --red-bdr:      rgba(192,34,42,0.2);
+      --red-text:     #8b0000;
+      --amber:        #b45309;
+      --amber-light:  #fffbeb;
+      --amber-bdr:    rgba(180,83,9,0.2);
+      --teal:         #0369a1;
+      --teal-light:   #e0f2fe;
+      --teal-bdr:     rgba(3,105,161,0.18);
+      --green:        #166534;
+      --green-light:  #f0fdf4;
+      --green-bdr:    rgba(22,101,52,0.18);
+      --purple:       #6d28d9;
+      --purple-light: #f5f3ff;
+      --purple-bdr:   rgba(109,40,217,0.18);
+      --pink:         #be185d;
+      --pink-light:   #fdf2f8;
+      --pink-bdr:     rgba(190,24,93,0.18);
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Sora',sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; user-select:none; }
+
+    /* ─── STANDBY ─── */
+    #standby {
+      position:fixed; inset:0; background:#fff;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:200; cursor:pointer;
+    }
+    #standby::before {
+      content:''; position:absolute; inset:0;
+      background-image: linear-gradient(rgba(3,105,161,0.06) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(3,105,161,0.06) 1px,transparent 1px);
+      background-size:56px 56px; animation:gridDrift 30s linear infinite;
+    }
+    @keyframes gridDrift { 100%{background-position:56px 56px;} }
+    .sb-inner { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; }
+    .sb-eyebrow { font-size:11px; font-weight:600; letter-spacing:.35em; text-transform:uppercase; color:var(--teal); margin-bottom:16px; }
+    .sb-title { font-size:72px; font-weight:800; letter-spacing:-.03em; background:linear-gradient(135deg,#0f1f33 30%,#0369a1 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:6px; line-height:1; }
+    .sb-sub { font-size:14px; font-weight:300; color:var(--muted); letter-spacing:.05em; margin-bottom:52px; }
+    .sb-clock { font-family:'IBM Plex Mono',monospace; font-size:58px; color:var(--text); letter-spacing:-.02em; margin-bottom:4px; }
+    .sb-date { font-size:12px; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; margin-bottom:48px; }
+    .sb-ticker { width:540px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:14px 20px; margin-bottom:44px; box-shadow:var(--shadow); }
+    .sb-ticker-label { font-size:9px; letter-spacing:.22em; text-transform:uppercase; color:var(--amber); margin-bottom:6px; font-weight:600; }
+    .sb-ticker-msg { font-size:13px; color:var(--text); }
+    .sb-tap { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13px; animation:tapPulse 2.2s ease-in-out infinite; }
+    @keyframes tapPulse { 0%,100%{opacity:.5;} 50%{opacity:1;} }
+    .sb-tap-bar { width:28px; height:3px; border-radius:2px; background:var(--teal); animation:tapBar 2.2s ease-in-out infinite; }
+    @keyframes tapBar { 0%,100%{opacity:.4;transform:scaleX(.6);} 50%{opacity:1;transform:scaleX(1);} }
+
+    /* ─── APP ─── */
+    #app { display:none; flex-direction:column; height:100vh; }
+    .hdr {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 20px; background:var(--surface);
+      border-bottom:1px solid var(--border); flex-shrink:0; gap:12px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.06);
+    }
+    .hdr-left { display:flex; align-items:center; gap:8px; }
+    .btn-home, .btn-back {
+      display:flex; align-items:center; gap:6px; padding:7px 13px; border-radius:7px;
+      border:1px solid var(--border); font-family:'Sora',sans-serif; font-size:12px;
+      font-weight:500; cursor:pointer; transition:all .15s; line-height:1;
+      background:var(--surface2); color:var(--text);
+    }
+    .btn-home:hover { border-color:var(--teal); color:var(--teal); }
+    .btn-back { display:none; background:transparent; color:var(--muted); }
+    .btn-back:hover { border-color:rgba(0,0,0,.18); color:var(--text); }
+    .hdr-title { font-size:13px; font-weight:600; color:var(--text); }
+    .hdr-right { display:flex; align-items:center; gap:16px; }
+    .hdr-search {
+      display:flex; align-items:center; gap:8px;
+      background:var(--surface2); border:1px solid var(--border);
+      border-radius:7px; padding:7px 12px; width:190px; transition:border-color .15s;
+    }
+    .hdr-search:focus-within { border-color:var(--teal); }
+    .hdr-search input { background:none; border:none; outline:none; color:var(--text); font-family:'Sora',sans-serif; font-size:12px; width:100%; }
+    .hdr-search input::placeholder { color:var(--dim); }
+    .hdr-clock { font-family:'IBM Plex Mono',monospace; font-size:17px; text-align:right; color:var(--text); }
+    .hdr-datestr { font-size:10px; color:var(--muted); text-align:right; letter-spacing:.04em; }
+
+    .alert-strip {
+      background:var(--red-light); border-bottom:2px solid var(--red);
+      padding:9px 20px; display:flex; align-items:center; gap:10px;
+      font-size:12px; color:var(--red-text); flex-shrink:0; font-weight:500;
+    }
+    .blink-dot { width:7px; height:7px; border-radius:50%; background:var(--red); flex-shrink:0; animation:blink 1.6s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.2;} }
+
+    .content { flex:1; overflow:hidden; }
+
+    /* ─── PAGES ─── */
+    .page { display:none; flex-direction:column; height:100%; padding:20px; gap:14px; overflow:hidden; }
+    .page-hdr { display:flex; align-items:center; gap:11px; flex-shrink:0; }
+    .page-icon-wrap { width:36px; height:36px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .page-title { font-size:20px; font-weight:700; }
+    .page-scroll { flex:1; overflow-y:auto; padding-right:3px; }
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+    /* ─── HOME ─── */
+    #page-home { display:none; flex-direction:column; height:100%; padding:18px 20px; gap:12px; }
+    .home-eyebrow { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+    .cards-grid { display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(2,1fr); gap:12px; flex:1; }
+    .card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px;
+      padding:18px 16px; cursor:pointer;
+      transition:transform .2s, box-shadow .2s, border-color .2s;
+      display:flex; flex-direction:column; gap:9px; position:relative; overflow:hidden;
+      box-shadow:var(--shadow);
+    }
+    .card::after { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--ca); border-radius:14px 14px 0 0; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,0.09); border-color:var(--ca); }
+    .card:active { transform:translateY(0); }
+    .card-ico-wrap { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--ci-bg); }
+    .card-name { font-size:13px; font-weight:700; color:var(--text); line-height:1.2; }
+    .card-desc { font-size:11px; color:var(--muted); line-height:1.5; }
+    .card-chev { margin-top:auto; color:var(--dim); transition:transform .2s,color .2s; display:flex; }
+    .card:hover .card-chev { transform:translateX(4px); color:var(--ca); }
+
+    .c-alerts  { --ca:var(--red);    --ci-bg:var(--red-light);    background:var(--red-light);    border-color:var(--red-bdr); }
+    .c-map     { --ca:var(--teal);   --ci-bg:var(--teal-light);   }
+    .c-shuttle { --ca:var(--green);  --ci-bg:var(--green-light);  }
+    .c-bus     { --ca:var(--amber);  --ci-bg:var(--amber-light);  }
+    .c-dir     { --ca:var(--purple); --ci-bg:var(--purple-light); }
+    .c-clubs   { --ca:var(--pink);   --ci-bg:var(--pink-light);   }
+
+    /* ─── ALERTS ─── */
+    .alert-item { background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:14px 16px; margin-bottom:9px; display:flex; gap:12px; align-items:flex-start; box-shadow:var(--shadow); }
+    .alert-item.critical { background:var(--red-light);   border-color:var(--red-bdr);   border-left:3px solid var(--red); }
+    .alert-item.warning  { background:var(--amber-light); border-color:var(--amber-bdr); border-left:3px solid var(--amber); }
+    .alert-item.info     { background:var(--teal-light);  border-color:var(--teal-bdr);  border-left:3px solid var(--teal); }
+    .badge { font-size:8px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:3px 7px; border-radius:3px; flex-shrink:0; margin-top:2px; }
+    .alert-item.critical .badge { background:var(--red);   color:#fff; }
+    .alert-item.warning  .badge { background:var(--amber); color:#fff; }
+    .alert-item.info     .badge { background:var(--teal);  color:#fff; }
+    .alert-body h3 { font-size:13px; font-weight:600; margin-bottom:4px; }
+    .alert-body p  { font-size:11px; color:var(--muted); line-height:1.55; }
+    .alert-ts { font-size:10px; color:var(--dim); margin-top:5px; font-family:'IBM Plex Mono',monospace; }
+
+    /* ─── MAP ─── */
+    #page-map { display:none; flex-direction:column; height:100%; padding:0; gap:0; overflow:hidden; }
+    .map-top-bar { display:flex; align-items:center; justify-content:space-between; padding:11px 18px; background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0; gap:12px; }
+    .map-top-title { font-size:14px; font-weight:700; color:var(--teal); display:flex; align-items:center; gap:7px; }
+    .map-legend { display:flex; align-items:center; gap:12px; font-size:10px; color:var(--muted); }
+    .leg-item { display:flex; align-items:center; gap:4px; }
+    .leg-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .map-body { display:flex; flex:1; overflow:hidden; }
+    .map-sidebar { width:210px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+    .map-sidebar-hdr { padding:11px 13px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .map-sidebar-hdr h3 { font-size:11px; font-weight:700; color:var(--text); margin-bottom:7px; }
+    .map-bldg-search { display:flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:6px 9px; transition:border-color .15s; }
+    .map-bldg-search:focus-within { border-color:var(--teal); }
+    .map-bldg-search input { background:none; border:none; outline:none; color:var(--text); font-family:'Sora',sans-serif; font-size:11px; width:100%; }
+    .map-filter-row { display:flex; gap:4px; padding:7px 13px; flex-shrink:0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .mf-chip { padding:3px 8px; border-radius:10px; border:1px solid var(--border); font-size:9px; color:var(--muted); cursor:pointer; background:transparent; font-family:'Sora',sans-serif; font-weight:500; transition:all .15s; white-space:nowrap; }
+    .mf-chip.on { background:var(--teal-light); border-color:var(--teal); color:var(--teal); }
+    .map-bldg-list { flex:1; overflow-y:auto; padding:7px 9px; }
+    .bldg-btn { width:100%; text-align:left; background:transparent; border:1px solid transparent; border-radius:7px; padding:8px 9px; cursor:pointer; margin-bottom:3px; font-family:'Sora',sans-serif; transition:all .15s; }
+    .bldg-btn:hover { background:var(--teal-light); border-color:var(--teal-bdr); }
+    .bldg-btn.active { background:var(--teal-light); border-color:var(--teal); }
+    .bldg-btn-name { font-size:11px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:4px; }
+    .bldg-btn-sub  { font-size:9px; color:var(--muted); margin-top:1px; }
+    .acc-tag { font-size:8px; color:var(--teal); font-weight:700; letter-spacing:.04em; }
+    .bldg-info-card { display:none; padding:11px 13px; background:var(--teal-light); border-top:2px solid var(--teal); flex-shrink:0; }
+    .bldg-info-name { font-size:12px; font-weight:700; color:var(--text); margin-bottom:3px; }
+    .bldg-info-detail { font-size:10px; color:var(--muted); line-height:1.5; }
+    .bldg-info-acc { display:inline-flex; align-items:center; gap:4px; margin-top:5px; font-size:9px; color:var(--teal); font-weight:600; background:white; border:1px solid var(--teal-bdr); border-radius:4px; padding:2px 6px; }
+    .route-btn { margin-top:7px; width:100%; padding:7px; border-radius:6px; background:var(--teal); color:#fff; border:none; font-family:'Sora',sans-serif; font-size:11px; font-weight:600; cursor:pointer; transition:opacity .15s; }
+    .route-btn:hover { opacity:.88; }
+    .route-btn.active { background:var(--green); }
+    #leaflet-map { flex:1; z-index:0; }
+    .leaflet-popup-content-wrapper { border-radius:9px !important; box-shadow:0 4px 20px rgba(0,0,0,0.13) !important; font-family:'Sora',sans-serif !important; }
+    .leaflet-popup-content { margin:11px 14px !important; }
+    .popup-name { font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px; }
+    .popup-type { font-size:10px; color:var(--muted); margin-bottom:5px; }
+    .popup-acc  { font-size:10px; color:#0369a1; font-weight:600; }
+    .popup-nav  { font-size:10px; color:var(--muted); margin-top:4px; }
+
+    /* ─── SHUTTLE ─── */
+    .shuttle-card { background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:16px 18px; margin-bottom:11px; box-shadow:var(--shadow); }
+    .sh-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:11px; }
+    .sh-name  { font-size:15px; font-weight:700; }
+    .sh-route { font-size:10px; color:var(--muted); margin-top:2px; }
+    .sh-badge { font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:4px 9px; border-radius:20px; }
+    .sh-badge.on  { background:var(--green-light); color:var(--green); border:1px solid var(--green-bdr); }
+    .sh-badge.off { background:var(--amber-light); color:var(--amber); border:1px solid var(--amber-bdr); }
+    .sh-sub { font-size:10px; color:var(--muted); margin-bottom:7px; }
+    .sh-times { display:flex; gap:7px; flex-wrap:wrap; }
+    .time-chip { background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:6px 11px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text); display:flex; align-items:center; gap:6px; }
+    .time-chip.next { border-color:var(--green); color:var(--green); background:var(--green-light); font-weight:600; }
+    .time-next-dot { width:6px; height:6px; border-radius:50%; background:var(--green); flex-shrink:0; }
+    .sh-dir { font-size:10px; color:var(--muted); margin-top:8px; display:flex; align-items:center; gap:5px; }
+    .live-note { font-size:10px; color:var(--muted); margin-top:5px; display:flex; align-items:center; gap:6px; }
+    .live-dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:blink 2s infinite; flex-shrink:0; }
+
+    /* ─── BUS ─── */
+    .route-card { background:var(--surface); border:1px solid var(--border); border-radius:13px; padding:16px 18px; margin-bottom:11px; box-shadow:var(--shadow); }
+    .route-num  { font-size:30px; font-weight:800; font-family:'IBM Plex Mono',monospace; color:var(--amber); line-height:1; }
+    .route-name { font-size:12px; color:var(--muted); margin:3px 0 11px; }
+    .stops { display:flex; align-items:center; gap:5px; flex-wrap:wrap; font-size:11px; color:var(--muted); }
+    .sdot  { width:6px; height:6px; border-radius:50%; background:var(--amber); flex-shrink:0; }
+    .sline { flex:1; height:1px; background:var(--border); min-width:12px; }
+    .route-next { font-size:12px; margin-top:10px; color:var(--text); }
+    .route-next strong { color:var(--amber); }
+    .qr-row { font-size:10px; color:var(--muted); margin-top:8px; display:flex; align-items:center; gap:5px; }
+
+    /* ─── DIRECTORY ─── */
+    .dir-search { display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:10px 13px; transition:border-color .15s; flex-shrink:0; box-shadow:var(--shadow); }
+    .dir-search:focus-within { border-color:var(--purple); }
+    .dir-search input { background:none; border:none; outline:none; color:var(--text); font-family:'Sora',sans-serif; font-size:13px; width:100%; }
+    .dir-search input::placeholder { color:var(--dim); }
+    .chips { display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0; }
+    .chip { padding:5px 12px; border-radius:20px; border:1px solid var(--border); font-size:10px; color:var(--muted); cursor:pointer; font-family:'Sora',sans-serif; background:var(--surface); transition:all .15s; font-weight:500; }
+    .chip:hover,.chip.on { border-color:var(--purple); color:var(--purple); background:var(--purple-light); }
+    .dir-item { background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:12px 15px; margin-bottom:7px; display:flex; justify-content:space-between; align-items:center; box-shadow:var(--shadow); }
+    .dir-name { font-size:13px; font-weight:500; margin-bottom:2px; }
+    .dir-dept { font-size:10px; color:var(--muted); }
+    .dir-loc  { font-size:11px; color:var(--purple); font-weight:600; text-align:right; white-space:nowrap; display:flex; align-items:center; gap:4px; }
+
+    /* ─── CLUBS ─── */
+    .club-card { background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:14px 16px; margin-bottom:9px; display:flex; gap:13px; box-shadow:var(--shadow); }
+    .date-box  { background:var(--pink-light); border:1px solid var(--pink-bdr); border-radius:7px; padding:7px 11px; text-align:center; flex-shrink:0; min-width:44px; }
+    .date-mon  { font-size:8px; letter-spacing:.1em; color:var(--pink); text-transform:uppercase; font-weight:700; }
+    .date-day  { font-size:20px; font-weight:700; font-family:'IBM Plex Mono',monospace; color:var(--text); }
+    .club-name { font-size:13px; font-weight:600; margin-bottom:2px; }
+    .club-org  { font-size:10px; color:var(--pink); margin-bottom:4px; font-weight:500; }
+    .club-meta { font-size:10px; color:var(--muted); display:flex; align-items:center; gap:4px; }
+
+    /* ─── FOOTER ─── */
+    .emg-footer { background:var(--surface); border-top:1px solid var(--border); padding:9px 20px; display:flex; align-items:center; gap:10px; flex-shrink:0; }
+    .emg-dot  { width:8px; height:8px; border-radius:50%; background:#16a34a; flex-shrink:0; }
+    .emg-text { font-size:10px; color:var(--muted); }
+    .emg-text strong { color:var(--text); }
+    .emg-version { margin-left:auto; font-size:9px; color:var(--dim); white-space:nowrap; font-family:'IBM Plex Mono',monospace; }
+    .no-results { font-size:12px; color:var(--muted); padding:18px 0; }
+  </style>
+</head>
+<body>
+
+<!-- STANDBY -->
+<div id="standby" onclick="wakeUp()">
+  <div class="sb-inner">
+    <div class="sb-eyebrow">Rensselaer Polytechnic Institute</div>
+    <div class="sb-title">SINE</div>
+    <div class="sb-sub">Student Information, Navigation &amp; Emergency System</div>
+    <div class="sb-clock" id="sb-clock">--:--</div>
+    <div class="sb-date" id="sb-date">—</div>
+    <div class="sb-ticker">
+      <div class="sb-ticker-label">Latest on campus</div>
+      <div class="sb-ticker-msg" id="ticker">Loading…</div>
+    </div>
+    <div class="sb-tap">
+      <div class="sb-tap-bar"></div>
+      Touch anywhere to begin
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="hdr">
+    <div class="hdr-left">
+      <button class="btn-home" onclick="goHome()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Home
+      </button>
+      <button class="btn-back" id="btn-back" onclick="goHome()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <span class="hdr-title" id="hdr-title">RPI Campus</span>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-search">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--dim);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="gsearch" placeholder="Search anything…" oninput="globalSearch(this.value)" />
+      </div>
+      <div>
+        <div class="hdr-clock" id="hdr-clock">--:--</div>
+        <div class="hdr-datestr" id="hdr-date">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert-strip">
+    <div class="blink-dot"></div>
+    <span><strong>Campus Alert:</strong> Icy conditions near DCC — use alternate route via the Student Union. Updated 8:14 AM.</span>
+  </div>
+
+  <div class="content">
+
+    <!-- HOME -->
+    <div id="page-home" style="display:flex;flex-direction:column;height:100%;padding:18px 20px;gap:12px;">
+      <div class="home-eyebrow">Welcome to RPI — What do you need today?</div>
+      <div class="cards-grid">
+
+        <div class="card c-alerts" onclick="nav('alerts','Campus Alerts')">
+          <div class="card-ico-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div class="card-name">Campus Alerts</div>
+          <div class="card-desc">Active warnings, weather, emergency notices</div>
+          <div class="card-chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+
+        <div class="card c-map" onclick="nav('map','Campus Map')">
+          <div class="card-ico-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+          </div>
+          <div class="card-name">Campus Map</div>
+          <div class="card-desc">Buildings, accessible routes, directions</div>
+          <div class="card-chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+
+        <div class="card c-shuttle" onclick="nav('shuttle','Shuttle Times')">
+          <div class="card-ico-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <div class="card-name">Shuttle Times</div>
+          <div class="card-desc">Live tracker with route directions</div>
+          <div class="card-chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+
+        <div class="card c-bus" onclick="nav('bus','Bus Routes')">
+          <div class="card-ico-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 000-7h-11a3.5 3.5 0 010-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+          </div>
+          <div class="card-name">Bus Routes</div>
+          <div class="card-desc">CDTA schedules, Routes 87 &amp; 286</div>
+          <div class="card-chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+
+        <div class="card c-dir" onclick="nav('directory','Directory')">
+          <div class="card-ico-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div class="card-name">Directory</div>
+          <div class="card-desc">Faculty, offices, department contacts</div>
+          <div class="card-chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+
+        <div class="card c-clubs" onclick="nav('clubs','Club Announcements')">
+          <div class="card-ico-wrap">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="card-name">Club Announcements</div>
+          <div class="card-desc">Events, meetings, campus news</div>
+          <div class="card-chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ALERTS -->
+    <div id="page-alerts" class="page">
+      <div class="page-hdr">
+        <div class="page-icon-wrap" style="background:var(--red-light)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="page-title" style="color:var(--red)">Campus Alerts</div>
+      </div>
+      <div class="page-scroll">
+        <div class="alert-item critical"><div class="badge">Critical</div><div class="alert-body"><h3>Icy Conditions Near DCC</h3><p>Walkway between DCC and Folsom Library is icy. Facilities crew treating the area. Use alternate route via the Student Union.</p><div class="alert-ts">Today · 8:14 AM</div></div></div>
+        <div class="alert-item warning"><div class="badge">Warning</div><div class="alert-body"><h3>Shuttle Delay — North Loop</h3><p>North Loop running approximately 10 minutes behind schedule due to road conditions on Congress St.</p><div class="alert-ts">Today · 7:52 AM</div></div></div>
+        <div class="alert-item info"><div class="badge">Info</div><div class="alert-body"><h3>Library Extended Hours This Week</h3><p>Folsom Library open until 2:00 AM through Friday for midterms. Quiet floors enforced after 10 PM.</p><div class="alert-ts">Yesterday · 5:30 PM</div></div></div>
+        <div class="alert-item info"><div class="badge">Info</div><div class="alert-body"><h3>Parking Lot E Temporarily Reduced</h3><p>Half of Lot E unavailable March 25–27. Additional parking in Lot A and West Garage.</p><div class="alert-ts">Mar 24 · 4:00 PM</div></div></div>
+      </div>
+    </div>
+
+    <!-- MAP -->
+    <div id="page-map">
+      <div class="map-top-bar">
+        <div class="map-top-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+          RPI Campus Map
+        </div>
+        <div class="map-legend">
+          <div class="leg-item"><div class="leg-dot" style="background:#0369a1"></div>Here</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#16a34a"></div>Accessible</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#b45309"></div>Academic</div>
+          <div class="leg-item"><div class="leg-dot" style="background:#6d28d9"></div>Residential</div>
+        </div>
+      </div>
+      <div class="map-body">
+        <div class="map-sidebar">
+          <div class="map-sidebar-hdr">
+            <h3>Buildings</h3>
+            <div class="map-bldg-search">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--dim);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="bldg-search-input" placeholder="Search buildings…" oninput="filterBldgs(this.value)" />
+            </div>
+          </div>
+          <div class="map-filter-row">
+            <button class="mf-chip on" onclick="setBldgFilter(this,'all')">All</button>
+            <button class="mf-chip" onclick="setBldgFilter(this,'academic')">Academic</button>
+            <button class="mf-chip" onclick="setBldgFilter(this,'residential')">Dorms</button>
+            <button class="mf-chip" onclick="setBldgFilter(this,'admin')">Admin</button>
+          </div>
+          <div class="map-bldg-list" id="bldg-list"></div>
+          <div class="bldg-info-card" id="bldg-info-card">
+            <div class="bldg-info-name" id="bic-name">—</div>
+            <div class="bldg-info-detail" id="bic-detail">—</div>
+            <div id="bic-acc"></div>
+            <button class="route-btn" id="route-btn" onclick="toggleRoute()">Show route from kiosk</button>
+          </div>
+        </div>
+        <div id="leaflet-map"></div>
+      </div>
+    </div>
+
+    <!-- SHUTTLE -->
+    <div id="page-shuttle" class="page">
+      <div class="page-hdr">
+        <div class="page-icon-wrap" style="background:var(--green-light)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        </div>
+        <div class="page-title" style="color:var(--green)">Shuttle Times</div>
+      </div>
+      <div class="page-scroll">
+        <div class="shuttle-card">
+          <div class="sh-hdr"><div><div class="sh-name">North Loop</div><div class="sh-route">Union → ECAV → North Hall → Nason → Union</div></div><div class="sh-badge on">Running</div></div>
+          <div class="sh-sub">Next arrivals at <strong style="color:var(--text)">Student Union</strong></div>
+          <div class="sh-times">
+            <div class="time-chip next"><div class="time-next-dot"></div>8:47 AM</div>
+            <div class="time-chip">9:02 AM</div>
+            <div class="time-chip">9:17 AM</div>
+          </div>
+          <div class="sh-dir">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Heading: Union → ECAV → North Hall
+          </div>
+        </div>
+        <div class="shuttle-card">
+          <div class="sh-hdr"><div><div class="sh-name">West Loop</div><div class="sh-route">Union → BARH → Blitman → 15th St → Union</div></div><div class="sh-badge on">Running</div></div>
+          <div class="sh-sub">Next arrivals at <strong style="color:var(--text)">Student Union</strong></div>
+          <div class="sh-times">
+            <div class="time-chip next"><div class="time-next-dot"></div>8:51 AM</div>
+            <div class="time-chip">9:06 AM</div>
+            <div class="time-chip">9:21 AM</div>
+          </div>
+          <div class="sh-dir">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            Heading: Union → BARH → Blitman
+          </div>
+        </div>
+        <div class="shuttle-card">
+          <div class="sh-hdr"><div><div class="sh-name">Late Night Shuttle</div><div class="sh-route">On-demand within 1-mile campus radius</div></div><div class="sh-badge off">Off Hours</div></div>
+          <div style="font-size:12px;color:var(--muted)">Late night service begins at 10:00 PM and runs until 3:00 AM.</div>
+        </div>
+        <div class="live-note">
+          <div class="live-dot"></div>
+          Live tracker · Last updated <span id="sh-updated" style="font-family:'IBM Plex Mono',monospace;margin-left:3px;">--:--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BUS -->
+    <div id="page-bus" class="page">
+      <div class="page-hdr">
+        <div class="page-icon-wrap" style="background:var(--amber-light)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 000-7h-11a3.5 3.5 0 010-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+        </div>
+        <div class="page-title" style="color:var(--amber)">CDTA Bus Routes</div>
+      </div>
+      <div class="page-scroll">
+        <div class="route-card">
+          <div class="route-num">87</div>
+          <div class="route-name">Troy – Albany Express · Mon–Sat</div>
+          <div class="stops"><div class="sdot"></div>RPI (15th St Bridge)<div class="sline"></div><div class="sdot"></div>Downtown Troy<div class="sline"></div><div class="sdot"></div>Menands<div class="sline"></div><div class="sdot"></div>Albany Exchange</div>
+          <div class="route-next"><strong>Next departure:</strong><span style="font-family:'IBM Plex Mono',monospace"> 9:05 AM</span><span style="color:var(--muted);font-size:10px"> · 15th St Bridge</span></div>
+          <div class="qr-row">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--dim);flex-shrink:0"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><rect x="16" y="16" width="2" height="2"/><rect x="11" y="3" width="2" height="2"/><rect x="3" y="11" width="2" height="2"/></svg>
+            Scan QR for full schedule and live tracking
+          </div>
+        </div>
+        <div class="route-card">
+          <div class="route-num">286</div>
+          <div class="route-name">Troy Local – Brunswick / Walmart · Daily</div>
+          <div class="stops"><div class="sdot"></div>RPI (Ricketts Ave)<div class="sdot"></div>Under the Bridge<div class="sline"></div><div class="sdot"></div>Downtown Troy<div class="sline"></div><div class="sdot"></div>Brunswick Center<div class="sline"></div><div class="sdot"></div>Walmart</div>
+          <div class="route-next"><strong>Next departure:</strong><span style="font-family:'IBM Plex Mono',monospace"> 9:22 AM</span><span style="color:var(--muted);font-size:10px"> · Ricketts Ave (under bridge)</span></div>
+          <div class="qr-row">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--dim);flex-shrink:0"><rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/><rect x="16" y="16" width="2" height="2"/><rect x="11" y="3" width="2" height="2"/><rect x="3" y="11" width="2" height="2"/></svg>
+            Scan QR for full schedule and live tracking
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIRECTORY -->
+    <div id="page-directory" class="page">
+      <div class="page-hdr">
+        <div class="page-icon-wrap" style="background:var(--purple-light)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div class="page-title" style="color:var(--purple)">Directory</div>
+      </div>
+      <div class="dir-search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--dim);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="dir-q" placeholder="Search by name, department, or building…" oninput="filterDir(this.value)" />
+      </div>
+      <div class="chips">
+        <button class="chip on" onclick="setChip(this,'all')">All</button>
+        <button class="chip" onclick="setChip(this,'sci')">Science</button>
+        <button class="chip" onclick="setChip(this,'eng')">Engineering</button>
+        <button class="chip" onclick="setChip(this,'admin')">Administration</button>
+        <button class="chip" onclick="setChip(this,'svc')">Student Services</button>
+      </div>
+      <div class="page-scroll"><div id="dir-list"></div></div>
+    </div>
+
+    <!-- CLUBS -->
+    <div id="page-clubs" class="page">
+      <div class="page-hdr">
+        <div class="page-icon-wrap" style="background:var(--pink-light)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="page-title" style="color:var(--pink)">Club Announcements</div>
+      </div>
+      <div class="page-scroll">
+        <div class="club-card">
+          <div class="date-box"><div class="date-mon">Mar</div><div class="date-day">26</div></div>
+          <div><div class="club-name">Spring Hackathon Kickoff Night</div><div class="club-org">RPI Hackathon Club</div>
+          <div class="club-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>DCC 308 · 6:00–10:00 PM · Free food</div></div>
+        </div>
+        <div class="club-card">
+          <div class="date-box"><div class="date-mon">Mar</div><div class="date-day">27</div></div>
+          <div><div class="club-name">Weekly Meeting + Spring Showcase Practice</div><div class="club-org">Eighth Wonder Dance Company</div>
+          <div class="club-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'87 Gymnasium · 7:30–10:00 PM · All welcome</div></div>
+        </div>
+        <div class="club-card">
+          <div class="date-box"><div class="date-mon">Mar</div><div class="date-day">28</div></div>
+          <div><div class="club-name">Career Fair Prep Session with Alumni</div><div class="club-org">RPI Student Engineering Association</div>
+          <div class="club-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>MRC 302 · 5:00–7:00 PM · Resume reviews</div></div>
+        </div>
+        <div class="club-card">
+          <div class="date-box"><div class="date-mon">Mar</div><div class="date-day">29</div></div>
+          <div><div class="club-name">Korean Culture Night — Tickets Available</div><div class="club-org">Korean Student Association</div>
+          <div class="club-meta"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>EMPAC Concert Hall · Doors 6:30 PM · $5</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="emg-footer">
+    <div class="emg-dot"></div>
+    <div class="emg-text"><strong>Emergency:</strong> Press the physical red button on this pole to connect to RPI Public Safety. You may cancel at any time. The call is recorded.</div>
+    <div class="emg-version">SINE v1.0</div>
+  </div>
+</div>
+
+<script>
+const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function tick(){
+  const n=new Date(),hh=String(n.getHours()).padStart(2,'0'),mm=String(n.getMinutes()).padStart(2,'0');
+  const ts=`${hh}:${mm}`,ds=`${DAYS[n.getDay()]}, ${MONTHS[n.getMonth()]} ${n.getDate()}`;
+  ['sb-clock','hdr-clock'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ts;});
+  ['sb-date','hdr-date'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ds;});
+  const su=document.getElementById('sh-updated');if(su)su.textContent=ts;
+}
+tick();setInterval(tick,1000);
+
+const MSGS=[
+  'North Loop running — next at Student Union: 8:47 AM',
+  'Folsom Library open until 2 AM this week · Midterms extended hours',
+  'Icy path near DCC — use Union route · Facilities treating area',
+  'Eighth Wonder Spring Showcase — March 27 · Gymnasium · All welcome',
+  'Hackathon Kickoff tonight · DCC 308 · 6 PM · Free food',
+  'Korean Culture Night tickets available — March 29 · EMPAC',
+];
+let tIdx=0;
+const tickerEl=document.getElementById('ticker');
+function rotateTicker(){
+  tickerEl.style.transition='opacity .35s';tickerEl.style.opacity=0;
+  setTimeout(()=>{tickerEl.textContent=MSGS[tIdx%MSGS.length];tickerEl.style.opacity=1;tIdx++;},350);
+}
+rotateTicker();setInterval(rotateTicker,5500);
+
+let sleepTimer;
+function wakeUp(){document.getElementById('standby').style.display='none';document.getElementById('app').style.display='flex';goHome();startSleepTimer();}
+function startSleepTimer(){clearTimeout(sleepTimer);sleepTimer=setTimeout(()=>{document.getElementById('standby').style.display='flex';document.getElementById('app').style.display='none';},90000);}
+['click','touchstart','keypress'].forEach(ev=>document.addEventListener(ev,()=>{if(document.getElementById('app').style.display!=='none')startSleepTimer();}));
+
+const ALL_PAGES=['home','alerts','map','shuttle','bus','directory','clubs'];
+function showOnly(id){ALL_PAGES.forEach(p=>{const e=document.getElementById(`page-${p}`);if(e)e.style.display='none';});const t=document.getElementById(`page-${id}`);if(t)t.style.display='flex';}
+function goHome(){showOnly('home');document.getElementById('btn-back').style.display='none';document.getElementById('hdr-title').textContent='RPI Campus';document.getElementById('gsearch').value='';}
+function nav(page,title){
+  showOnly(page);document.getElementById('btn-back').style.display='flex';document.getElementById('hdr-title').textContent=title;
+  if(page==='directory')renderDir();
+  if(page==='map'){setTimeout(()=>{if(!mapReady){initMap();mapReady=true;}else if(mapInstance)mapInstance.invalidateSize();},80);}
+}
+function globalSearch(val){if(val.length<2)return;nav('directory','Directory');document.getElementById('dir-q').value=val;renderDir(val,activeFilt);}
+
+const KIOSK=[42.73015,-73.67622];
+const BUILDINGS=[
+  {id:'union',   name:'Rensselaer Union',         short:'Student Union',  lat:42.73015,lng:-73.67622,cat:'admin',      acc:true, contents:'Student Govt, Dining, Game Room, Bookstore'},
+  {id:'folsom',  name:'Folsom Library',            short:'Folsom Library', lat:42.72960,lng:-73.67775,cat:'academic',   acc:true, contents:'Study spaces, Research services, Printing'},
+  {id:'dcc',     name:'Darrin Communications Ctr', short:'DCC',            lat:42.72924,lng:-73.67826,cat:'academic',   acc:false,contents:'Classrooms, Faculty offices, Media labs'},
+  {id:'jec',     name:'Jonsson Engineering Ctr',   short:'JEC',            lat:42.72888,lng:-73.67745,cat:'academic',   acc:true, contents:'ECSE, Chem Eng, Mech Eng offices & labs'},
+  {id:'lally',   name:'Lally Management Bldg',     short:'Lally Hall',     lat:42.72958,lng:-73.67645,cat:'academic',   acc:true, contents:'Business classrooms, Faculty offices'},
+  {id:'amos',    name:'Amos Eaton Hall',            short:'Amos Eaton',     lat:42.73045,lng:-73.67705,cat:'academic',   acc:false,contents:'Math dept, Chemistry labs'},
+  {id:'sage',    name:'Sage Laboratory',            short:'Sage Lab',       lat:42.73068,lng:-73.67720,cat:'academic',   acc:false,contents:'Physics labs, Faculty offices'},
+  {id:'mrc',     name:'Materials Research Ctr',    short:'MRC',            lat:42.72840,lng:-73.67815,cat:'academic',   acc:true, contents:'Research labs, Clean rooms'},
+  {id:'cbis',    name:'Ctr for Biotechnology',     short:'CBIS',           lat:42.72815,lng:-73.67592,cat:'academic',   acc:true, contents:'Bio labs, Research centers'},
+  {id:'empac',   name:'Experimental Media & Arts', short:'EMPAC',          lat:42.72787,lng:-73.67922,cat:'academic',   acc:true, contents:'Concert hall, Studios, Performance spaces'},
+  {id:'vcc',     name:'Voorhees Computing Ctr',    short:'VCC',            lat:42.72998,lng:-73.67688,cat:'academic',   acc:true, contents:'Computer labs, IT Help Desk, Laptop Repair'},
+  {id:'walker',  name:'Walker Laboratory',          short:'Walker Lab',     lat:42.72823,lng:-73.67760,cat:'academic',   acc:false,contents:'Machine shop, Mech Eng labs'},
+  {id:'ecav',    name:'ECAV Apartments',            short:'ECAV',           lat:42.73158,lng:-73.67870,cat:'residential',acc:true, contents:'Residential apartments'},
+  {id:'barh',    name:'BARH Residence Halls',       short:'BARH',           lat:42.73245,lng:-73.67905,cat:'residential',acc:true, contents:'Freshman residence halls, Dining'},
+  {id:'blitman', name:'Blitman Commons',            short:'Blitman',        lat:42.73372,lng:-73.67963,cat:'residential',acc:true, contents:'Apartments, Common areas'},
+  {id:'north',   name:'North Hall',                 short:'North Hall',     lat:42.73281,lng:-73.67783,cat:'residential',acc:true, contents:'Residence hall'},
+  {id:'academy', name:'Academy Hall',               short:'Academy Hall',   lat:42.73115,lng:-73.67563,cat:'admin',      acc:true, contents:'Registrar, Financial Aid, Dean of Students, Counseling'},
+  {id:'troy',    name:'Troy Building',              short:'Troy Bldg',      lat:42.73084,lng:-73.67502,cat:'admin',      acc:true, contents:'Administrative offices'},
+  {id:'heffner', name:'Heffner Alumni House',       short:'Heffner Alumni', lat:42.73194,lng:-73.67485,cat:'admin',      acc:true, contents:'Admissions Office, Alumni events'},
+  {id:'gym87',   name:"'87 Gymnasium",              short:"'87 Gym",        lat:42.73061,lng:-73.67553,cat:'admin',      acc:true, contents:'Gym, Pool, Fitness equipment, Muller Center'},
+];
+const CAT_COLORS={academic:'#b45309',residential:'#6d28d9',admin:'#be185d'};
+let mapInstance=null,markers={},activeRoute=null,activeBldgId=null,routeShowing=false,bldgFilter='all',mapReady=false;
+
+function initMap(){
+  if(mapInstance)return;
+  mapInstance=L.map('leaflet-map',{center:KIOSK,zoom:16});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:19}).addTo(mapInstance);
+  const youHereIcon=L.divIcon({className:'',html:`<div style="width:16px;height:16px;border-radius:50%;background:#0369a1;border:3px solid white;box-shadow:0 0 0 0 rgba(3,105,161,0.5);animation:yah 2s infinite;"></div><style>@keyframes yah{0%{box-shadow:0 0 0 0 rgba(3,105,161,0.5);}70%{box-shadow:0 0 0 12px rgba(3,105,161,0);}100%{box-shadow:0 0 0 0 rgba(3,105,161,0);}}</style>`,iconSize:[16,16],iconAnchor:[8,8]});
+  L.marker(KIOSK,{icon:youHereIcon}).addTo(mapInstance).bindPopup(`<div class="popup-name">You Are Here</div><div class="popup-type">SINE Kiosk · Rensselaer Union</div><div class="popup-nav">Select a building from the sidebar for directions</div>`).openPopup();
+  BUILDINGS.forEach(b=>{
+    const color=b.acc?'#16a34a':CAT_COLORS[b.cat];
+    const icon=L.divIcon({className:'',html:`<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);cursor:pointer;"></div>`,iconSize:[12,12],iconAnchor:[6,6]});
+    const accLine=b.acc?`<div class="popup-acc">Accessible route available</div>`:`<div style="font-size:10px;color:#b45309;">Limited accessibility</div>`;
+    const m=L.marker([b.lat,b.lng],{icon}).addTo(mapInstance).bindPopup(`<div class="popup-name">${b.name}</div><div class="popup-type">${b.contents}</div>${accLine}<div class="popup-nav" style="color:#0369a1;cursor:pointer;font-weight:600;margin-top:4px" onclick="selectBldgById('${b.id}')">Get directions from kiosk</div>`);
+    m.on('click',()=>selectBldgById(b.id));
+    markers[b.id]=m;
+  });
+  renderBldgList();
+}
+
+function selectBldgById(id){
+  const b=BUILDINGS.find(x=>x.id===id);if(!b)return;
+  activeBldgId=id;routeShowing=false;
+  mapInstance.flyTo([b.lat,b.lng],17,{duration:1.1});
+  markers[id].openPopup();
+  document.getElementById('bic-name').textContent=b.name;
+  document.getElementById('bic-detail').textContent=b.contents;
+  document.getElementById('bic-acc').innerHTML=b.acc?`<span class="bldg-info-acc">Accessible route</span>`:`<span class="bldg-info-acc" style="color:#b45309;border-color:#b45309;">Limited accessibility</span>`;
+  const rb=document.getElementById('route-btn');rb.textContent='Show route from kiosk';rb.className='route-btn';
+  document.getElementById('bldg-info-card').style.display='block';
+  if(activeRoute){mapInstance.removeLayer(activeRoute);activeRoute=null;}
+  document.querySelectorAll('.bldg-btn').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+}
+
+function toggleRoute(){
+  if(!activeBldgId)return;
+  const b=BUILDINGS.find(x=>x.id===activeBldgId);if(!b)return;
+  if(activeRoute){mapInstance.removeLayer(activeRoute);activeRoute=null;routeShowing=false;}
+  if(!routeShowing){
+    const color=b.acc?'#16a34a':'#b45309';
+    activeRoute=L.polyline([KIOSK,[b.lat,b.lng]],{color,weight:4,dashArray:b.acc?null:'8 6',opacity:.85}).addTo(mapInstance);
+    mapInstance.fitBounds(activeRoute.getBounds(),{padding:[40,40]});
+    const rb=document.getElementById('route-btn');
+    rb.textContent=b.acc?'Accessible route shown':'Route shown (limited accessibility)';
+    rb.className='route-btn active';routeShowing=true;
+  }
+}
+
+function renderBldgList(q='',filter=bldgFilter){
+  const q2=q.toLowerCase();
+  const out=BUILDINGS.filter(b=>{const mQ=!q2||b.name.toLowerCase().includes(q2)||b.short.toLowerCase().includes(q2);const mF=filter==='all'||b.cat===filter;return mQ&&mF;});
+  document.getElementById('bldg-list').innerHTML=out.map(b=>`<button class="bldg-btn${activeBldgId===b.id?' active':''}" data-id="${b.id}" onclick="selectBldgById('${b.id}')"><div class="bldg-btn-name"><span style="width:8px;height:8px;border-radius:50%;background:${b.acc?'#16a34a':CAT_COLORS[b.cat]};flex-shrink:0;display:inline-block"></span>${b.short}${b.acc?` <span class="acc-tag">ACC</span>`:''}</div><div class="bldg-btn-sub">${b.cat.charAt(0).toUpperCase()+b.cat.slice(1)}</div></button>`).join('');
+}
+function filterBldgs(q){renderBldgList(q,bldgFilter);}
+function setBldgFilter(el,f){bldgFilter=f;document.querySelectorAll('.mf-chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderBldgList(document.getElementById('bldg-search-input').value,f);}
+
+const PEOPLE=[
+  {name:'Dr. James Hendler',       dept:'Computer Science',      loc:'Lally 301',        tag:'sci'},
+  {name:'Prof. Lester Gerhardt',    dept:'Electrical Engineering',loc:'JEC 6026',         tag:'eng'},
+  {name:'Dr. Shekhar Garde',        dept:'Chemical Engineering',  loc:'CBIS 4005',        tag:'eng'},
+  {name:'Dr. Chjan Lim',           dept:'Mathematics',           loc:'Amos Eaton 221',   tag:'sci'},
+  {name:'Prof. Agung Julius',       dept:'ECSE',                  loc:'JEC 4046',         tag:'eng'},
+  {name:'Office of Financial Aid',  dept:'Administration',        loc:'Troy Bldg 212',    tag:'admin'},
+  {name:'Office of the Registrar',  dept:'Administration',        loc:'Academy Hall 3300',tag:'admin'},
+  {name:'Dean of Students',         dept:'Administration',        loc:'Academy Hall 3130',tag:'admin'},
+  {name:'Counseling Center',        dept:'Student Services',      loc:'Academy Hall 3100',tag:'svc'},
+  {name:'Student Health Center',    dept:'Student Services',      loc:'Academy Hall 3100',tag:'svc'},
+  {name:'Career & Professional Dev.',dept:'Student Services',     loc:'Union 3500',       tag:'svc'},
+  {name:'Disability Services',      dept:'Student Services',      loc:'Academy Hall 3227',tag:'svc'},
+];
+let activeFilt='all';
+const PIN=`<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+function renderDir(q='',filt=activeFilt){
+  const q2=(q||document.getElementById('dir-q').value||'').toLowerCase();
+  const out=PEOPLE.filter(p=>{const mQ=!q2||p.name.toLowerCase().includes(q2)||p.dept.toLowerCase().includes(q2)||p.loc.toLowerCase().includes(q2);const mF=filt==='all'||p.tag===filt;return mQ&&mF;});
+  document.getElementById('dir-list').innerHTML=out.length?out.map(p=>`<div class="dir-item"><div><div class="dir-name">${p.name}</div><div class="dir-dept">${p.dept}</div></div><div class="dir-loc">${PIN}${p.loc}</div></div>`).join(''):'<div class="no-results">No results found.</div>';
+}
+function filterDir(q){renderDir(q,activeFilt);}
+function setChip(el,filt){activeFilt=filt;document.querySelectorAll('.chips .chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');renderDir('',filt);}
+</script>
+</body>
+</html>
